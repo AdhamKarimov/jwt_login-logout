@@ -1,4 +1,4 @@
-from rest_framework import serializers, status
+from rest_framework import serializers, status, viewsets
 from .models import User
 from rest_framework.exceptions import ValidationError
 
@@ -47,3 +47,65 @@ class SignUpSerializer(serializers.ModelSerializer):
         )
 
         return user
+
+class UpdateProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['username', 'first_name', 'last_name', 'email', 'phone_number', 'address']
+
+        def update(self, instance, validated_data):
+            instance.username = validated_data.get('username', instance.username)
+            instance.first_name = validated_data.get('first_name', instance.first_name)
+            instance.last_name = validated_data.get('last_name', instance.last_name)
+            instance.email = validated_data.get('email', instance.email)
+            instance.phone_number = validated_data.get('phone_number', instance.phone_number)
+            instance.address = validated_data.get('address', instance.address)
+
+            instance.save()
+            return instance
+
+class ProfileViewSerializers(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['username', 'first_name', 'last_name', 'email', 'phone_number', 'address']
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(write_only=True, required=True)
+    new_password = serializers.CharField(write_only=True, required=True)
+    confirm_password = serializers.CharField(write_only=True, required=True)
+
+    def validate(self, atters):
+        old_password = atters.get('old_password')
+        new_password = atters.get('new_password')
+        confirm_password = atters.get('confirm_password')
+        if old_password != confirm_password:
+            raise ValidationError({
+                'status': status.HTTP_400_BAD_REQUEST,
+                'message':"eski paro; va yangi parol bir xil bo'lmasligi kerak"
+            })
+        if new_password is None or confirm_password is None or new_password != confirm_password:
+            response = {
+                'status': status.HTTP_400_BAD_REQUEST,
+                'message': 'Parollar mos emas yoki xato kiritildi'
+            }
+            raise ValidationError(response)
+
+        if ' ' in new_password:
+            raise ValidationError({
+                'status': status.HTTP_400_BAD_REQUEST,
+                'message': "Parolda bo'sh joy bo'lishi mumkin emas"
+            })
+        if len(new_password) <= 6:
+            raise ValidationError({
+                'status': status.HTTP_400_BAD_REQUEST,
+                'message': "Parol kamida 6ta belgidan iborat bo'lishi kerak "
+            })
+        return atters
+
+    def update(self, instance, validated_data):
+        user = instance.check_password(validated_data.get('old_password'))
+        user.set_password(validated_data.get('new_password'))
+        user.save()
+        return user
+
